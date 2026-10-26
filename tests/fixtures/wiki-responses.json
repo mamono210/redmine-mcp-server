@@ -1,0 +1,110 @@
+[
+  {
+    "id": "get-200",
+    "kind": "source-derived",
+    "sources": ["wiki-show", "wiki-view", "rails-response"],
+    "tool": "getWikiPage",
+    "status": 200,
+    "headers": { "content-type": "application/json; charset=utf-8" },
+    "body": {
+      "wiki_page": {
+        "title": "日本語ページ",
+        "parent": { "title": "親ページ" },
+        "text": "テスト本文",
+        "version": 2,
+        "author": { "id": 7, "name": "Test User" },
+        "comments": "test update",
+        "project": { "id": 42, "name": "Test Project" },
+        "created_on": "2026-01-01T00:00:00Z",
+        "updated_on": "2026-01-02T00:00:00Z",
+        "attachments": []
+      }
+    }
+  },
+  {
+    "id": "create-201",
+    "kind": "source-derived",
+    "sources": ["wiki-update", "wiki-view", "rails-response"],
+    "tool": "updateWikiPage",
+    "status": 201,
+    "headers": {
+      "content-type": "application/json; charset=utf-8",
+      "location": "/redmine/projects/42/wiki/Wiki"
+    },
+    "body": {
+      "wiki_page": {
+        "title": "Wiki",
+        "text": "テスト本文",
+        "version": 1,
+        "author": { "id": 7, "name": "Test User" },
+        "comments": "test update",
+        "project": { "id": 42, "name": "Test Project" },
+        "created_on": "2026-01-01T00:00:00Z",
+        "updated_on": "2026-01-01T00:00:00Z"
+      }
+    }
+  },
+  {
+    "id": "update-204",
+    "kind": "source-derived",
+    "sources": ["wiki-update", "api-head", "rails-head", "rails-response"],
+    "tool": "updateWikiPage",
+    "status": 204,
+    "headers": {},
+    "body": ""
+  },
+  {
+    "id": "forbidden-403",
+    "kind": "source-derived",
+    "sources": ["wiki-update", "api-error", "rails-head", "rails-response"],
+    "tool": "updateWikiPage",
+    "status": 403,
+    "headers": { "content-type": "application/json" },
+    "body": ""
+  },
+  {
+    "id": "missing-404",
+    "kind": "source-derived",
+    "sources": ["wiki-show", "api-error", "rails-head", "rails-response"],
+    "tool": "getWikiPage",
+    "status": 404,
+    "headers": { "content-type": "application/json" },
+    "body": ""
+  },
+  {
+    "id": "conflict-409",
+    "kind": "source-derived",
+    "sources": ["wiki-update", "api-head", "rails-head", "rails-response"],
+    "tool": "updateWikiPage",
+    "status": 409,
+    "headers": { "content-type": "application/json" },
+    "body": ""
+  },
+  {
+    "id": "validation-422",
+    "kind": "source-derived",
+    "sources": ["wiki-update", "api-validation", "errors-view", "rails-response"],
+    "tool": "updateWikiPage",
+    "status": 422,
+    "headers": { "content-type": "application/json; charset=utf-8" },
+    "body": { "errors": ["Text cannot be blank"] }
+  },
+  {
+    "id": "validation-empty-422",
+    "kind": "source-derived",
+    "sources": ["wiki-update", "api-validation", "errors-view", "rails-response"],
+    "tool": "updateWikiPage",
+    "status": 422,
+    "headers": { "content-type": "application/json; charset=utf-8" },
+    "body": { "errors": [] }
+  },
+  {
+    "id": "html-403",
+    "kind": "synthetic",
+    "sources": ["custom-fetch"],
+    "tool": "updateWikiPage",
+    "status": 403,
+    "headers": { "content-type": "text/html; charset=utf-8" },
+    "body": "<html><body>This synthetic error body is deliberately longer than two hundred characters to exercise the custom fetch error excerpt. It is invented test data, not a response captured from any Redmine deployment. THIS_SUFFIX_MUST_BE_TRUNCATED</body></html>"
+  }
+]

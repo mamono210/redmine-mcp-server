@@ -6,6 +6,11 @@ Model Context Protocol (MCP) server for Redmine that provides comprehensive acce
 
 This project is an MCP server that comprehensively covers Redmine's [REST API](https://www.redmine.org/projects/redmine/wiki/rest_api). It allows you to operate Redmine from MCP clients (such as Claude Desktop).
 
+## Development tests
+
+See [the testing guide](docs/testing.md) for the pinned Node.js / pnpm versions,
+local build, typecheck and MCP tests, fixture provenance, and PR CI.
+
 ## Demonstration
 
 Here are example videos showing how to use the Redmine MCP server with Claude Desktop:
