@@ -1,0 +1,70 @@
+name: Redmine integration tests
+
+on:
+  push:
+    branches:
+      - test/issue-2-redmine-integration
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: redmine-integration-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  integration:
+    name: Real Redmine Wiki tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10.20.0
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and test a fresh Redmine environment
+        run: pnpm test:integration
+
+      - name: Repeat with another empty database
+        run: pnpm test:integration
+
+      - name: Existing MCP regression tests
+        run: pnpm test
+
+      - name: Upload integration evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: redmine-integration-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: error
+          retention-days: 14
+          include-hidden-files: false
+          # Only sanitized, pre-fixture startup logs and selected state fields.
+          # Never upload temporary credentials, raw SDK stderr or seed output.
+          path: |
+            integration-results/*/result.json
+            integration-results/*/Gemfile.lock
+            integration-results/*/mcp-build.log
+            integration-results/*/mcp-typecheck.log
+            integration-results/*/redmine-build.log
+            integration-results/*/compose-up.log
+            integration-results/*/cleanup.log
+            integration-results/*/startup-containers.log
+            integration-results/*/container-state.json

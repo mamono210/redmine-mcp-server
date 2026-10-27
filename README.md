@@ -290,3 +290,11 @@ MIT License
 
 - OpenAPI specification: [d-yoshi/redmine-openapi](https://github.com/d-yoshi/redmine-openapi)
 - Code generation: [Orval](https://orval.dev/) - TypeScript client and schema generator from OpenAPI
+
+## Real Redmine integration tests
+
+See [the disposable integration environment](docs/integration-testing.md) for
+`pnpm test:integration`, using the source and database versions fixed in #2.
+Run them locally or push `test/issue-2-redmine-integration` to start the dedicated
+GitHub Actions workflow. After that workflow reaches `main`, it also supports
+manual runs. The existing PR CI continues to run the mock-backed tests.

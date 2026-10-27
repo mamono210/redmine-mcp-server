@@ -1,0 +1,3 @@
+# Upstream declares puma in :test. Make the same dependency available to
+# the standalone test server in production mode, as docker-library/redmine does.
+gem 'puma'

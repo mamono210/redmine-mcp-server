@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
+    environment:
+      POSTGRES_DB: mcp_wiki_integration
+      POSTGRES_USER: integration
+      # Disposable local fixture only; never reuse for another database.
+      POSTGRES_PASSWORD: disposable-integration-only
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U integration -d mcp_wiki_integration']
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  redmine:
+    build:
+      context: ./redmine
+    environment:
+      RAILS_ENV: production
+      MCP_INTEGRATION_ENV: wiki-only-disposable
+    ports:
+      - '127.0.0.1::3000'
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - ruby
+        - -rnet/http
+        - -e
+        - 'exit(Net::HTTP.get_response(URI("http://127.0.0.1:3000/login")).code == "200" ? 0 : 1)'
+      interval: 3s
+      timeout: 10s
+      start_period: 60s
+      retries: 80
+
+volumes:
+  database:

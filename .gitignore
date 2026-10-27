@@ -1,3 +1,6 @@
 node_modules/
 src/__generated__/
 dist/
+
+# Disposable integration evidence (never publish runtime data).
+integration-results/
