@@ -222,8 +222,30 @@ The existing normal-case assertions in `integration/wiki.mjs` are retained.
 
 The #2 baseline passed two fresh environments in
 [GHA run 40431338633](https://github.com/mamono210/redmine-mcp-server/actions/runs/40431338633).
-That run predates the parent feature and is not #3 evidence. This authoring
-environment has no Docker Engine or Ruby runtime, so the new parent suite has
-not been run against real Redmine here. See the delivery verification record
-for local checks, then run the applied #3 commit twice and retain its evidence
-before closing #3.
+That run predates the parent feature and is not #3 evidence. The #3 real-Redmine
+verification was subsequently performed on GitHub Actions as follows.
+
+[#3 integration run 40436756690](https://github.com/mamono210/redmine-mcp-server/actions/runs/40436756690)
+passed for MCP commit `6ceecb82d10dd22674473f6e81162a614b29e43f`. Both executions
+recorded a clean worktree, `ci: true`, `ci_provider: github-actions` and that
+run ID. They used Redmine `7.0.2.devel` at
+`f7ea71f9563ea7b346a8dbc7abb3854fc69321ea`, Rails `8.1.4` and PostgreSQL `17.6`.
+
+| Result directory | Baseline MCP calls | Parent cases passed | Parent-suite MCP calls | Test / cleanup |
+| --- | --- | --- | --- | --- |
+| `redmine-mcp-it-65f9861d-7ce` | 16 | 13 / 13 | 35 | passed / passed |
+| `redmine-mcp-it-a60407d8-c32` | 16 | 13 / 13 | 35 | passed / passed |
+
+Each execution used a fresh database and checked both non-admin permission
+sets. The total was 51 MCP calls per execution, 102 across both executions.
+The workflow's subsequent regression test step passed all 37 tests.
+[PR CI run 40437488377](https://github.com/mamono210/redmine-mcp-server/actions/runs/40437488377)
+also passed generation/build, typechecking and tests for the same commit.
+
+The artifact `redmine-integration-40436756690-1` contains both result directories,
+their raw HTTP/MCP evidence in `result.json`, exported `Gemfile.lock` files and
+the allowlisted logs. Download it from the integration run before its 14-day
+retention expires for long-term storage. See [the Wiki parent verification
+record](wiki-parents.md#verification-status-of-this-implementation) for the
+observed HTTP responses and readback behavior. This evidence identifies the
+tested commit and fixed Redmine source; later commits need their own CI results.

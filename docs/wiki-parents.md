@@ -64,8 +64,9 @@ contain a `parent` property at all.
 
 ## Permissions, title resolution and concurrency
 
-The following expectations come from the pinned Redmine source. The new
-real-Redmine tests must pass before treating them as measured #3 results.
+The following behavior was confirmed against the pinned Redmine source in
+[GHA run 40436756690](https://github.com/mamono210/redmine-mcp-server/actions/runs/40436756690).
+See the verification record below for the tested commit and environment.
 
 - Updating an **existing** page's parent requires `rename_wiki_pages` in
   addition to Wiki editing permission. Without it, Redmine ignores
@@ -76,14 +77,14 @@ real-Redmine tests must pass before treating them as measured #3 results.
   redirects. Compare `parent.title` with the **saved title of the resolved
   target page**, obtained by reading that page. Comparing it only with the
   caller's input, or just normalizing that input, is insufficient for redirects.
-- With rename permission, nonexistent, self and descendant parents are
-  expected to return 422. The pinned controller renders the content object's
-  errors, so these parent errors are expected to produce `{"errors":[]}`.
+- With rename permission, nonexistent, self and descendant parents returned
+  422 with `{"errors":[]}`. The pinned controller renders the content object's
+  errors rather than the parent validation errors.
   The MCP returns Redmine's result without inventing a reason.
-- An old `version` with a changed body is expected to return an empty 409
-  response and leave the stored body/version/parent unchanged.
+- An old `version` with a changed body returned an empty 409 response and
+  left the stored body/version/parent unchanged.
 - With an unchanged body, the parent-only update does not save Wiki content;
-  an old `version` is therefore not a concurrency guard. The suite expects a
+  an old `version` is therefore not a concurrency guard. The suite confirmed a
   successful parent change with the stored content version unchanged.
 - Redmine 204/409/422 responses keep the existing MCP representation. Empty
   bodies become `data: {}` and the serialized Headers object is `{}`. These
@@ -163,12 +164,36 @@ change to the existing branch filter.
 - The earlier [#2 GHA run](https://github.com/mamono210/redmine-mcp-server/actions/runs/40431338633)
   passed baseline Wiki tests against that Redmine twice. It did **not** test
   this parent feature.
-- This authoring environment has no Docker Engine. Real-Redmine #3 tests and
-  CI for this patch have not been run here. Consult the delivery's verification
-  record for local checks. Run integration tests on the applied commit before
-  completing #3; retain both result directories and their Gemfile.lock files.
+- Tested MCP commit: `6ceecb82d10dd22674473f6e81162a614b29e43f`, with a clean
+  worktree in both integration runs.
+- [#3 integration run 40436756690](https://github.com/mamono210/redmine-mcp-server/actions/runs/40436756690)
+  passed on GitHub Actions. Both fresh-database executions recorded
+  `result: passed`, `cleanup: passed` and all 13 parent cases passed. Each
+  execution made 16 baseline MCP calls and 35 parent-suite calls (51 total;
+  102 across both executions). All 37 regression tests also passed.
+- [PR CI run 40437488377](https://github.com/mamono210/redmine-mcp-server/actions/runs/40437488377)
+  passed for the same MCP commit, including generation/build, typechecking
+  and tests.
+- The integration artifact `redmine-integration-40436756690-1` contains both
+  result directories and their `Gemfile.lock` files. Download it from the run
+  before its 14-day retention expires to keep the evidence long term.
 
-Source expectations: pinned Redmine [Wiki model](https://github.com/redmine/redmine/blob/f7ea71f9563ea7b346a8dbc7abb3854fc69321ea/app/models/wiki.rb),
+The recorded raw HTTP responses were:
+
+| Scenario | Status | Content-Type | Body |
+| --- | --- | --- | --- |
+| Invalid parent with rename permission (nonexistent, self or descendant) | 422 | `application/json; charset=utf-8` | `{"errors":[]}` |
+| Stale content version with a changed body | 409 | `application/json` | Empty |
+| Successful update, including ignored parent changes without rename permission | 204 | Absent | Empty |
+
+Readback confirmed that an existing page's parent stayed unchanged without
+rename permission, while an unchanged-body parent-only update accepted a stale
+version and changed the parent without changing the content version. Parent
+removal, canonical titles and redirects also passed. These measurements apply
+to the tested commit and pinned Redmine source; they do not certify later
+commits or other Redmine versions. Later changes require their own CI results.
+
+Source references: pinned Redmine [Wiki model](https://github.com/redmine/redmine/blob/f7ea71f9563ea7b346a8dbc7abb3854fc69321ea/app/models/wiki.rb),
 [page model](https://github.com/redmine/redmine/blob/f7ea71f9563ea7b346a8dbc7abb3854fc69321ea/app/models/wiki_page.rb),
 [update controller](https://github.com/redmine/redmine/blob/f7ea71f9563ea7b346a8dbc7abb3854fc69321ea/app/controllers/wiki_controller.rb)
 and [API view](https://github.com/redmine/redmine/blob/f7ea71f9563ea7b346a8dbc7abb3854fc69321ea/app/views/wiki/show.api.rsb).
