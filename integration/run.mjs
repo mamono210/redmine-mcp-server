@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { verifyWiki } from './wiki.mjs';
 import { collectFailureDiagnostics } from './diagnostics.mjs';
+import { parentCaseNames, verifyWikiParents } from './wiki-parents.mjs';
 
 const execute = promisify(execFile);
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -34,7 +35,7 @@ const report = {
     ref: process.env.GITHUB_REF,
     sha: process.env.GITHUB_SHA,
   } : null,
-  commands: [], calls: [],
+  commands: [], calls: [], parent_cases: [],
   cleanup_command: ['docker', ...compose, 'down', '--volumes', '--remove-orphans'],
 };
 let secrets = [];
@@ -148,6 +149,17 @@ try {
   });
   abort.signal.throwIfAborted();
   assert.equal(report.calls.length, 16);
+  report.baseline_calls = report.calls.length;
+  stage = 'wiki_parent_tests';
+  console.log('Testing Wiki parents, permissions, redirects and version behavior...');
+  await verifyWikiParents({
+    entry: join(root, 'dist/server.mjs'), url, manifest, credentials,
+    record: call => report.calls.push(call),
+    recordCase: result => report.parent_cases.push(result),
+  });
+  assert.deepEqual(report.parent_cases.map(result => result.name), parentCaseNames);
+  assert.ok(report.parent_cases.every(result => result.result === 'passed'));
+  abort.signal.throwIfAborted();
   report.result = 'passed';
 } catch (error) {
   report.result = 'failed';

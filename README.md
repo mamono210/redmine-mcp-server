@@ -295,6 +295,17 @@ MIT License
 
 See [the disposable integration environment](docs/integration-testing.md) for
 `pnpm test:integration`, using the source and database versions fixed in #2.
-Run them locally or push `test/issue-2-redmine-integration` to start the dedicated
-GitHub Actions workflow. After that workflow reaches `main`, it also supports
-manual runs. The existing PR CI continues to run the mock-backed tests.
+Run them locally or push `test/issue-2-redmine-integration` or
+`feat/issue-3-wiki-parent` to start the dedicated GitHub Actions workflow.
+The workflow on `main` also supports manual runs with a selected branch.
+The existing PR CI continues to run the mock-backed tests.
+
+## Wiki parent pages
+
+`updateWikiPage` accepts an optional string `bodyParams.wiki_page.parent_title`:
+provide a parent title to assign/change it, `""` to remove it, or omit the field
+to preserve the existing parent. `text` remains required; `null` is rejected.
+Existing-page parent changes require `rename_wiki_pages`. Read the page back
+with `getWikiPage` because HTTP 204 alone does not confirm a parent change.
+See [Wiki parent usage and verification](docs/wiki-parents.md) for examples,
+title resolution, permission/version limitations and the #3 test scope.

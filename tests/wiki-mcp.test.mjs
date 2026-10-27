@@ -70,29 +70,47 @@ test('published Wiki schemas and readOnlyHint remain compatible', { timeout: 200
   assert.equal(get.annotations.readOnlyHint, true);
   assert.equal(update.annotations.readOnlyHint, false);
   const page = update.inputSchema.properties.bodyParams.properties.wiki_page;
-  assert.deepEqual(Object.keys(page.properties).sort(), ['comments', 'text', 'version']);
+  assert.deepEqual(Object.keys(page.properties).sort(), ['comments', 'parent_title', 'text', 'version']);
+  assert.equal(page.properties.parent_title.type, 'string');
+  assert.match(page.properties.parent_title.description, /empty string/);
+  assert.match(page.properties.parent_title.description, /omit/);
   assert.deepEqual(page.required, ['text']);
   assert.equal(page.additionalProperties, false);
   assert.equal(update.inputSchema.properties.pathParams.properties.projectId.type, 'number');
 });
 
-// #3 will replace these baseline expectations with optional-string handling.
-for (const [name, value] of [['title', '親ページ'], ['empty', ''], ['omitted', undefined], ['null', null]]) {
-  test(`current parent_title handling: ${name} is not sent`, { timeout: 20000 }, async t => {
+for (const [name, value] of [['title', 'Parent Page'], ['Japanese title', '日本語 親ページ'], ['empty', ''], ['omitted', undefined]]) {
+  test(`parent_title HTTP request preserves ${name}`, { timeout: 20000 }, async t => {
     const mcp = await startMcp(t, updateFixture);
     const args = updateArgs();
+    args.pathParams.wikiPageTitle = '日本語 子ページ';
     if (value !== undefined) args.bodyParams.wiki_page.parent_title = value;
     await mcp.call('updateWikiPage', args);
     assert.equal(mcp.requests.length, 1);
-    assert.deepEqual(JSON.parse(mcp.requests[0].body), { wiki_page: wikiPage });
+    assert.deepEqual(JSON.parse(mcp.requests[0].body), args.bodyParams);
+    assert.equal(mcp.requests[0].url, `/redmine/projects/42/wiki/${encodeURIComponent('日本語 子ページ')}.json`);
+    assert.equal(Object.hasOwn(JSON.parse(mcp.requests[0].body).wiki_page, 'parent_title'), value !== undefined);
   });
 }
 
-for (const invalid of ['missing text', 'string projectId']) {
+for (const value of [null, 42, false, {}, []]) {
+  test(`non-string parent_title is rejected: ${JSON.stringify(value)}`, { timeout: 20000 }, async t => {
+    const mcp = await startMcp(t, updateFixture);
+    const args = updateArgs();
+    args.bodyParams.wiki_page.parent_title = value;
+    await assert.rejects(mcp.call('updateWikiPage', args), error => error.code === -32602);
+    assert.equal(mcp.requests.length, 0);
+  });
+}
+
+for (const invalid of ['missing text', 'parent without text', 'string projectId']) {
   test(`invalid input is rejected before HTTP: ${invalid}`, { timeout: 20000 }, async t => {
     const mcp = await startMcp(t, updateFixture);
     const args = updateArgs();
-    if (invalid === 'missing text') delete args.bodyParams.wiki_page.text;
+    if (invalid === 'missing text' || invalid === 'parent without text') {
+      delete args.bodyParams.wiki_page.text;
+      if (invalid === 'parent without text') args.bodyParams.wiki_page.parent_title = '親ページ';
+    }
     else args.pathParams.projectId = 'test-project';
     await assert.rejects(mcp.call('updateWikiPage', args), error => error.code === -32602);
     assert.equal(mcp.requests.length, 0);
