@@ -127,6 +127,19 @@ the error fixtures from #1 remain source-derived, not real-Redmine measurements.
 
 ## Cleanup and recovery
 
+On failure, `result.json` records `failed_stage`. Before removing containers,
+the runner attempts to save `container-state.json` with exit codes, OOM flags,
+health status and timestamps; it does not dump container environment variables.
+If `up --wait` fails before fixture initialization, it also saves the last 300
+log lines per service as `startup-containers.log`. The entrypoint prints stage
+markers for environment/session initialization, migration, asset compilation
+and Rails startup. Credential-bearing lines, URL credentials and long hex
+values are redacted before saving. Raw logs are never written to an artifact.
+Container logs are not collected after startup, when fixture credentials may
+exist. Diagnostic errors are recorded separately and do not prevent cleanup
+or replace the original failure. Inspect these files before changing timeouts
+or dependency versions.
+
 Normally `pnpm test:integration` performs cleanup automatically, including on
 test failures. If the process is forcibly killed, Docker stops responding, or
 cleanup fails, use the exact `cleanup_command` array saved in `result.json`.
@@ -153,7 +166,8 @@ The workflow uses `ubuntu-24.04` and its Docker/Compose installation, installs
 the pinned Node.js/pnpm versions and frozen dependencies, then runs
 `pnpm test:integration` twice. Each invocation uses a new database, project and
 users; Docker build cache may be reused. The second run starts only if the first
-succeeds. The 23 existing mock-backed tests run after both integration passes.
+succeeds. The 23 existing mock-backed tests and startup diagnostic tests run
+after both integration passes.
 No step suppresses failures. The job has a 60-minute timeout.
 
 The workflow has `contents: read`, does not reference registered secrets, does
@@ -165,8 +179,9 @@ SHA. The upload action is `actions/upload-artifact` v4 at
 On success or failure, the final `always()` step attempts to save the explicit
 allowlist of reports, Gemfile.lock and safe command logs as
 `redmine-integration-<run-id>-<attempt>`, retained for **14 days**. It does not
-upload OS temporary files, private credentials, container logs or raw MCP/seed
-diagnostics. Missing artifacts are an error; a killed/timed-out runner may not
+upload OS temporary files, private credentials, raw container logs or raw MCP/seed
+diagnostics. Sanitized startup logs and selected container state are included
+when available. Missing artifacts are an error; a killed/timed-out runner may not
 finish upload. Download the artifact before expiry for long-term evidence.
 
 After a run, check both independent `result.json` files for `result: passed`,

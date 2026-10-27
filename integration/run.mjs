@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { verifyWiki } from './wiki.mjs';
+import { collectFailureDiagnostics } from './diagnostics.mjs';
 
 const execute = promisify(execFile);
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -39,11 +40,12 @@ const report = {
 let secrets = [];
 let temporary;
 let started = false;
+let stage = 'preflight';
 const redact = value => secrets.reduce((text, secret) => text.replaceAll(secret, '[REDACTED]'), value);
 const save = (name, value) => writeFile(join(output, name), redact(
   typeof value === 'string' ? value : JSON.stringify(value, null, 2) + '\n'), { mode: 0o600 });
 
-async function command(program, args, { log, cleanup = false, timeout = 120000 } = {}) {
+async function command(program, args, { log, cleanup = false, includeStderr = false, timeout = 120000 } = {}) {
   const item = { command: [program, ...args], started_at: new Date().toISOString() };
   report.commands.push(item);
   try {
@@ -53,7 +55,7 @@ async function command(program, args, { log, cleanup = false, timeout = 120000 }
     });
     item.exit_code = 0;
     if (log) await save(log, result.stdout + result.stderr);
-    return result.stdout.trim();
+    return (result.stdout + (includeStderr ? result.stderr : '')).trim();
   } catch (error) {
     item.exit_code = error.code ?? null;
     if (log) await save(log, (error.stdout ?? '') + (error.stderr ?? ''));
@@ -80,6 +82,7 @@ try {
   report.mcp_worktree_status = await command('git', ['status', '--porcelain']);
   report.mcp_version = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).version;
 
+  stage = 'mcp_build';
   console.log('Building the current MCP source...');
   await command('pnpm', ['build'], { log: 'mcp-build.log', timeout: 300000 });
   await command('pnpm', ['typecheck'], { log: 'mcp-typecheck.log', timeout: 120000 });
@@ -90,13 +93,16 @@ try {
   report.ruby_image_reference = dockerfile.match(/^FROM (\S+)$/m)[1];
   report.database_image_reference = configuration.services.db.image;
 
+  stage = 'redmine_build';
   console.log('Building the pinned Redmine source (first build can take several minutes)...');
   await docker(['build', 'redmine'], { log: 'redmine-build.log', timeout: 1200000 });
   started = true;
+  stage = 'redmine_startup';
   console.log('Starting PostgreSQL and waiting for the Redmine HTTP health check...');
   await docker(['up', '--detach', '--wait', '--wait-timeout', '300', 'db', 'redmine'], {
     log: 'compose-up.log', timeout: 360000,
   });
+  stage = 'environment_inspection';
   for (const service of ['db', 'redmine']) {
     const id = await docker(['ps', '--quiet', service]);
     assert.match(id, /^[a-f0-9]+$/);
@@ -110,6 +116,7 @@ try {
   const url = `http://${port}`;
   report.redmine_url = url;
 
+  stage = 'fixture_initialization';
   console.log('Initializing the isolated project and non-admin users...');
   await docker(['exec', '-T', 'redmine', '/opt/integration/entrypoint.sh', 'seed']);
   temporary = await mkdtemp(join(tmpdir(), `${project}-`));
@@ -133,6 +140,7 @@ try {
   assert.deepEqual(manifest.project.modules, ['wiki']);
   await docker(['cp', 'redmine:/redmine/Gemfile.lock', join(output, 'Gemfile.lock')]);
 
+  stage = 'wiki_tests';
   console.log('Testing Wiki create, update and readback for both users...');
   await verifyWiki({
     entry: join(root, 'dist/server.mjs'), url, manifest, credentials,
@@ -143,9 +151,21 @@ try {
   report.result = 'passed';
 } catch (error) {
   report.result = 'failed';
+  report.failed_stage = stage;
   report.error = redact(error.message);
 } finally {
   if (started) {
+    if (report.result === 'failed') {
+      console.log('Collecting failure diagnostics before container cleanup...');
+      try {
+        report.diagnostics = await collectFailureDiagnostics({
+          docker, command, save, startupLogs: stage === 'redmine_startup',
+        });
+      } catch {
+        // Diagnostic failures must not replace the original error or skip cleanup.
+        report.diagnostics = { errors: ['Failure diagnostics could not be collected'] };
+      }
+    }
     try {
       console.log('Removing this run\'s containers, network and database volume...');
       await docker(['down', '--volumes', '--remove-orphans'], { cleanup: true, log: 'cleanup.log' });

@@ -56,8 +56,8 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           include-hidden-files: false
-          # Explicit allowlist: never upload temporary credentials or raw logs
-          # from the Redmine container, SDK stderr, or the initialization process.
+          # Only sanitized, pre-fixture startup logs and selected state fields.
+          # Never upload temporary credentials, raw SDK stderr or seed output.
           path: |
             integration-results/*/result.json
             integration-results/*/Gemfile.lock
@@ -66,3 +66,5 @@ jobs:
             integration-results/*/redmine-build.log
             integration-results/*/compose-up.log
             integration-results/*/cleanup.log
+            integration-results/*/startup-containers.log
+            integration-results/*/container-state.json
