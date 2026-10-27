@@ -1,4 +1,4 @@
-# Disposable Redmine integration environment (#2)
+# Disposable Redmine integration environment (#2 / #3)
 
 This suite, runnable locally or on GitHub Actions, builds Redmine from the exact source selected in #2,
 creates a fresh PostgreSQL database and two non-admin users, and exercises
@@ -27,6 +27,8 @@ source, builds the Redmine image, starts the containers, initializes fixtures,
 runs the Wiki checks, and removes its containers, network and DB volume in
 `finally`. A failed setup, assertion or cleanup produces a nonzero exit code.
 It does not install dependencies automatically; use the frozen install above.
+After #2's baseline checks, it runs #3's
+[Wiki parent cases](wiki-parents.md), including permission and version behavior.
 
 The first build can take several minutes. Console messages identify the stage;
 command logs and `result.json` are saved in
@@ -111,7 +113,8 @@ For each user, the suite creates one Latin-name page and one Japanese-name page
 The names contain spaces, so expected names explicitly use `_`; the Latin
 example also checks capitalization of the first character. The numeric project
 ID comes from the seed manifest. Readback author IDs must match the non-admin
-user. This does not add `parent_title` to the MCP schema.
+user. These baseline checks omit `parent_title`; the subsequent #3 suite covers
+the newly added field.
 
 `result.json` includes:
 
@@ -121,13 +124,17 @@ user. This does not add `parent_title` to the MCP schema.
 - Fixed source/image references, actual running versions, image IDs/digests and
   architecture, project ID, enabled modules, user IDs and role permissions.
 - Every Wiki MCP input, result and readback, with generated API keys redacted.
+- The 13 parent-case results and their per-call raw HTTP status, Content-Type
+  and UTF-8 response body, kept separate from the MCP result. A loopback proxy
+  observes the same request; authentication headers/cookies are not recorded.
 - Whether CI is running, and GitHub repository/run/attempt/event/ref/SHA when
   running on Actions. Environment variables and tokens are not dumped.
 
 Inspect `result: passed` **and** `cleanup: passed`. HTTP status alone is not the
 test oracle. Keep the entire result directory for the run, including the
-Gemfile.lock and logs. These results establish only the four normal cases;
-the error fixtures from #1 remain source-derived, not real-Redmine measurements.
+Gemfile.lock and logs. Require all 13 `parent_cases` to pass as well. These
+results cover the four baseline normal cases and the documented #3 cases;
+they do not establish that all error fixtures from #1 have been measured.
 
 ## Cleanup and recovery
 
@@ -163,15 +170,16 @@ files remain until you delete that run's directory.
 ## CI and #3 handoff
 
 `.github/workflows/integration.yml` runs **Redmine integration tests** on pushes
-to `test/issue-2-redmine-integration`. Include the workflow and all #2 files in
+to `test/issue-2-redmine-integration` or `feat/issue-3-wiki-parent`.
+Include the workflow and all implementation files in
 the pushed commit. A PR or merge into `main` is not required for this trigger.
 
 The workflow uses `ubuntu-24.04` and its Docker/Compose installation, installs
 the pinned Node.js/pnpm versions and frozen dependencies, then runs
 `pnpm test:integration` twice. Each invocation uses a new database, project and
 users; Docker build cache may be reused. The second run starts only if the first
-succeeds. The 23 existing mock-backed tests and startup diagnostic tests run
-after both integration passes.
+succeeds. Mock-backed MCP tests, startup diagnostic tests and HTTP recorder
+tests run after both integration passes.
 No step suppresses failures. The job has a 60-minute timeout.
 
 The workflow has `contents: read`, does not reference registered secrets, does
@@ -199,24 +207,45 @@ Run workflow and select the branch. The selected branch must contain the
 workflow and test files. Until then, use a push to the branch above.
 
 **Real Redmine integration tests are not automatically run for every PR.**
-Other branches and pushes to `main` do not match this push filter. #3 can use
-manual execution once the workflow is on `main`, or deliberately extend the
-branch filter. `.github/workflows/ci.yml` retains #1's PR-triggered tests, and
+Other branches and pushes to `main` do not match this push filter. Manual
+execution is also available because the workflow is on `main`.
+`.github/workflows/ci.yml` retains #1's PR-triggered tests, and
 `publish.yml` is unchanged. Local `pnpm test:integration` remains supported.
 
-#3 can reuse the Compose environment, seed manifest's numeric project ID and
-two credential entries, and the MCP Client connection pattern in
-`integration/wiki.mjs`. Extend the runner while the disposable environment is
-alive; credentials and DB data are intentionally unavailable after cleanup.
-Parent/permission/error/version scenarios and their data belong to #3. The
-current assertions and the 23 mock-backed tests remain a regression baseline.
+#3 reuses the Compose environment and the seed manifest's numeric project ID
+and two credential entries. The seed also prepares a renamed parent/redirect
+fixture. `integration/wiki-parents.mjs` exercises parent operations while the
+environment is alive; credentials and DB data are unavailable after cleanup.
+The existing normal-case assertions in `integration/wiki.mjs` are retained.
 
 ## Validation status of this delivery
 
-The authoring environment has no Docker Engine or Ruby runtime and cannot start
-containers. Registry digests and pinned source were inspected, but a Redmine
-image has **not** been built here and real Redmine API tests have **not** run.
-See the accompanying delivery verification record for the exact static and
-mock-backed checks performed. A successful pair of local Docker or GHA runs
-and their evidence are still required before closing #2. Adding this workflow
-does not mean that GHA or real Redmine verification has already succeeded.
+The #2 baseline passed two fresh environments in
+[GHA run 40431338633](https://github.com/mamono210/redmine-mcp-server/actions/runs/40431338633).
+That run predates the parent feature and is not #3 evidence. The #3 real-Redmine
+verification was subsequently performed on GitHub Actions as follows.
+
+[#3 integration run 40436756690](https://github.com/mamono210/redmine-mcp-server/actions/runs/40436756690)
+passed for MCP commit `6ceecb82d10dd22674473f6e81162a614b29e43f`. Both executions
+recorded a clean worktree, `ci: true`, `ci_provider: github-actions` and that
+run ID. They used Redmine `7.0.2.devel` at
+`f7ea71f9563ea7b346a8dbc7abb3854fc69321ea`, Rails `8.1.4` and PostgreSQL `17.6`.
+
+| Result directory | Baseline MCP calls | Parent cases passed | Parent-suite MCP calls | Test / cleanup |
+| --- | --- | --- | --- | --- |
+| `redmine-mcp-it-65f9861d-7ce` | 16 | 13 / 13 | 35 | passed / passed |
+| `redmine-mcp-it-a60407d8-c32` | 16 | 13 / 13 | 35 | passed / passed |
+
+Each execution used a fresh database and checked both non-admin permission
+sets. The total was 51 MCP calls per execution, 102 across both executions.
+The workflow's subsequent regression test step passed all 37 tests.
+[PR CI run 40437488377](https://github.com/mamono210/redmine-mcp-server/actions/runs/40437488377)
+also passed generation/build, typechecking and tests for the same commit.
+
+The artifact `redmine-integration-40436756690-1` contains both result directories,
+their raw HTTP/MCP evidence in `result.json`, exported `Gemfile.lock` files and
+the allowlisted logs. Download it from the integration run before its 14-day
+retention expires for long-term storage. See [the Wiki parent verification
+record](wiki-parents.md#verification-status-of-this-implementation) for the
+observed HTTP responses and readback behavior. This evidence identifies the
+tested commit and fixed Redmine source; later commits need their own CI results.

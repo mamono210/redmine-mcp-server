@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - test/issue-2-redmine-integration
+      - feat/issue-3-wiki-parent
   workflow_dispatch:
 
 permissions:

@@ -16,6 +16,7 @@ ActionMailer::Base.perform_deliveries = false
 credentials = {}
 users = []
 project = nil
+parent_fixture = nil
 ActiveRecord::Base.transaction do
   Setting.rest_api_enabled = '1'
   Setting.login_required = '1'
@@ -50,6 +51,19 @@ ActiveRecord::Base.transaction do
                role: role.name, permissions: role.permissions.map(&:to_s).sort,
                rename_wiki_pages: user.allowed_to?(:rename_wiki_pages, project) }
   end
+
+  # #3 fixture only: exercise the normal rename callback to prepare a redirect.
+  # The feature under test still assigns parents through MCP, never via Ruby.
+  author = User.find(users.find { |user| user[:fixture] == 'with_rename' }[:id])
+  target = WikiPage.new(wiki: project.wiki, title: 'Previous Parent Name')
+  content = WikiContent.new(page: target, text: 'Redirect parent fixture for #3', author: author)
+  raise 'Could not create redirect target' unless target.save_with_content(content)
+  previous_title = target.title
+  target.redirect_existing_links = true
+  target.title = 'Redirect Parent Target'
+  target.save!
+  raise 'Missing redirect fixture' unless project.wiki.find_page(previous_title)&.id == target.id
+  parent_fixture = { previous_title: previous_title, target_title: target.title }
 end
 
 manifest = {
@@ -60,7 +74,7 @@ manifest = {
   gemfile_lock_sha256: Digest::SHA256.file(Rails.root.join('Gemfile.lock')).hexdigest,
   rest_api_enabled: Setting.rest_api_enabled?,
   project: { id: project.id, identifier: project.identifier, modules: project.enabled_module_names },
-  users: users
+  users: users, parent_fixture: parent_fixture
 }
 raise 'REST API or Wiki is disabled' unless manifest[:rest_api_enabled] && project.module_enabled?(:wiki)
 # Only the test harness reads this file. Never print it or copy it to evidence.
