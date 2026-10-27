@@ -50,6 +50,10 @@ It adds PostgreSQL configuration and makes upstream's `puma` dependency
 available outside the test group, through `Gemfile.local`. It does not patch
 Redmine's authorization, API or concurrency behavior.
 
+The `ldap` gem group is installed because production eager loading loads
+`AuthSourceLdap`, which requires `net/ldap`, even when LDAP authentication is
+not configured. The image build verifies those requires before startup.
+
 The source does **not** include a Gemfile.lock. Debian packages and transitive
 gems are resolved at image build time: this is not a claim of byte-reproducible
 image builds. The same built image/cache may be reused for subsequent runs.

@@ -1,7 +1,7 @@
 FROM ruby:3.4.5-bookworm@sha256:7a61aa7fe86768830f65d8e12571fc115f381a54557c7c88619a5368b92a0474
 
 ENV RAILS_ENV=production \
-    BUNDLE_WITHOUT=development:test:ldap:minimagick
+    BUNDLE_WITHOUT=development:test:minimagick
 WORKDIR /redmine
 
 RUN apt-get update \
@@ -17,7 +17,9 @@ RUN git init . \
 LABEL org.opencontainers.image.revision="f7ea71f9563ea7b346a8dbc7abb3854fc69321ea"
 COPY database.yml config/database.yml
 COPY Gemfile.local Gemfile.local
-RUN bundle install --jobs 4 --retry 3
+# Production eager loading loads AuthSourceLdap even without an LDAP fixture.
+RUN bundle install --jobs 4 --retry 3 \
+    && bundle exec ruby -rnet/ldap -rnet/ldap/dn -e 'puts "LDAP boot dependencies loaded"'
 COPY seed.rb /opt/integration/seed.rb
 COPY entrypoint.sh /opt/integration/entrypoint.sh
 RUN chmod 755 /opt/integration/entrypoint.sh
