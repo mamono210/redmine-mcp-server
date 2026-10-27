@@ -1,0 +1,8 @@
+production:
+  adapter: postgresql
+  encoding: unicode
+  host: db
+  database: mcp_wiki_integration
+  username: integration
+  password: disposable-integration-only
+  pool: 5

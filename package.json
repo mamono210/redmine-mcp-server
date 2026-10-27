@@ -14,7 +14,8 @@
     "gen": "rm -rf src/__generated__ && orval && node post-generate.js",
     "build": "pnpm gen && tsdown",
     "typecheck": "tsc --noEmit",
-    "test": "node --test --test-concurrency=1 tests/*.test.mjs"
+    "test": "node --test --test-concurrency=1 tests/*.test.mjs",
+    "test:integration": "node integration/run.mjs"
   },
   "repository": {
     "type": "git",

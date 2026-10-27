@@ -6,3 +6,6 @@ dist/
 
 .devcontainer/
 .vscode/
+
+# Disposable integration evidence (never publish runtime data).
+integration-results/
